@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>ElectroVision AI — Real-Time Electronic Component Identifier</title>
+<meta name="description" content="ElectroVision AI identifies electronic components in real time using your webcam, powered by TensorFlow.js and computer vision." />
+<meta name="theme-color" content="#0af0ff" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/icons/icon-192.png" />
+<link rel="stylesheet" href="/css/style.css" />
+
+<!-- TensorFlow.js + COCO-SSD object detection (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<!-- Three.js for hero background -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+</head>
+<body data-theme="dark">
+
+<!-- ================= LOADER ================= -->
+<div id="app-loader" class="app-loader">
+  <div class="loader-core">
+    <div class="loader-ring"></div>
+    <div class="loader-ring loader-ring-2"></div>
+    <div class="loader-logo">EV</div>
+  </div>
+  <p class="loader-text">Booting ElectroVision AI<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+</div>
+
+<!-- ================= NAVBAR ================= -->
+<header class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <a href="#home" class="brand">
+      <span class="brand-logo">⚡</span>
+      <span class="brand-text">ElectroVision <span class="brand-accent">AI</span></span>
+    </a>
+    <nav class="nav-links" id="nav-links">
+      <a href="#home" class="nav-link active" data-section="home">Home</a>
+      <a href="#camera" class="nav-link" data-section="camera">Live Camera</a>
+      <a href="#search" class="nav-link" data-section="search">Search</a>
+      <a href="#history" class="nav-link" data-section="history">History</a>
+      <a href="#training" class="nav-link" data-section="training">Training</a>
+      <a href="#settings" class="nav-link" data-section="settings">Settings</a>
+    </nav>
+    <div class="navbar-actions">
+      <button id="theme-toggle" class="icon-btn" title="Toggle dark/light mode" aria-label="Toggle theme">🌙</button>
+      <button id="nav-toggle" class="icon-btn nav-toggle" title="Menu" aria-label="Menu">☰</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ================= HOME / HERO ================= -->
+<section id="home" class="section hero-section">
+  <canvas id="hero-canvas" class="hero-canvas"></canvas>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <p class="hero-tag">AI-POWERED COMPUTER VISION</p>
+    <h1 class="hero-title">
+      Identify Any <span class="text-gradient">Electronic Component</span><br/>
+      In Real Time
+    </h1>
+    <p class="hero-subtitle">
+      Point your camera at a resistor, IC, sensor, or module — ElectroVision AI detects it,
+      explains it, and reads it aloud, instantly.
+    </p>
+    <div class="hero-actions">
+      <a href="#camera" class="btn btn-primary btn-glow" data-nav="camera">
+        <span>Start Live Detection</span>
+        <span class="btn-icon">📷</span>
+      </a>
+      <a href="#search" class="btn btn-ghost" data-nav="search">Browse Components</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><span class="stat-num" id="stat-components">0</span><span class="stat-label">Components Indexed</span></div>
+      <div class="hero-stat"><span class="stat-num" id="stat-detections">0</span><span class="stat-label">Detections Logged</span></div>
+      <div class="hero-stat"><span class="stat-num">100%</span><span class="stat-label">Runs In Your Browser</span></div>
+    </div>
+  </div>
+  <div class="scroll-cue">Scroll <span>↓</span></div>
+</section>
+
+<!-- ================= LIVE AI CAMERA ================= -->
+<section id="camera" class="section camera-section">
+  <div class="section-head">
+    <h2>Live AI Camera</h2>
+    <p>Real-time detection running entirely on-device with TensorFlow.js.</p>
+  </div>
+
+  <div class="camera-grid">
+    <!-- Camera Stage -->
+    <div class="camera-stage glass-panel" id="camera-stage">
+      <div class="camera-viewport" id="camera-viewport">
+        <video id="video" playsinline autoplay muted></video>
+        <canvas id="overlay-canvas"></canvas>
+        <img id="captured-preview" class="captured-preview hidden" alt="Captured frame" />
+        <div class="camera-placeholder" id="camera-placeholder">
+          <div class="placeholder-icon">📷</div>
+          <p>Camera is off. Click <strong>Start Camera</strong> to begin live detection.</p>
+        </div>
+        <div class="camera-hud">
+          <span class="hud-pill" id="fps-counter">0 FPS</span>
+          <span class="hud-pill" id="res-pill">— × —</span>
+          <span class="hud-pill hud-rec hidden" id="live-pill"><i></i> LIVE</span>
+        </div>
+      </div>
+
+      <div class="camera-toolbar">
+        <button id="btn-start-camera" class="tool-btn tool-btn-primary">▶ Start Camera</button>
+        <button id="btn-pause-camera" class="tool-btn" disabled>⏸ Pause</button>
+        <button id="btn-stop-camera" class="tool-btn" disabled>⏹ Stop</button>
+        <button id="btn-capture" class="tool-btn" disabled>📸 Capture</button>
+        <label class="tool-btn tool-btn-upload">
+          ⬆ Upload Image
+          <input type="file" id="file-upload" accept="image/*" hidden />
+        </label>
+        <button id="btn-mirror" class="tool-btn" title="Mirror Toggle">⇋ Mirror</button>
+        <button id="btn-fullscreen" class="tool-btn" title="Fullscreen">⛶ Fullscreen</button>
+      </div>
+
+      <div class="camera-settings-row">
+        <label class="mini-field">
+          Resolution
+          <select id="resolution-select">
+            <option value="640x480">640 × 480</option>
+            <option value="1280x720" selected>1280 × 720 (HD)</option>
+            <option value="1920x1080">1920 × 1080 (Full HD)</option>
+          </select>
+        </label>
+        <label class="mini-field">
+          Confidence Threshold <span id="confidence-value">50%</span>
+          <input type="range" id="confidence-slider" min="10" max="95" value="50" />
+        </label>
+        <label class="mini-field checkbox-field">
+          <input type="checkbox" id="continuous-toggle" checked />
+          Continuous Detection
+        </label>
+      </div>
+    </div>
+
+    <!-- Info Panel -->
+    <div class="info-panel glass-panel" id="info-panel">
+      <div class="info-empty" id="info-empty">
+        <div class="info-empty-icon">🔍</div>
+        <h3>No Component Detected Yet</h3>
+        <p>Start the camera and point it at an electronic component, or capture/upload an image.</p>
+      </div>
+
+      <div class="info-content hidden" id="info-content">
+        <div class="info-header">
+          <div>
+            <span class="info-category" id="info-category">Category</span>
+            <h3 id="info-name">Component Name</h3>
+          </div>
+          <div class="confidence-badge" id="info-confidence">0%</div>
+        </div>
+
+        <div class="info-tts-row">
+          <button id="btn-speak" class="tool-btn-small">🔊 Speak</button>
+          <button id="btn-mute" class="tool-btn-small">🔇 Mute</button>
+          <select id="tts-lang" class="tool-btn-small">
+            <option value="en-US">English</option>
+            <option value="ta-IN">Tamil</option>
+            <option value="hi-IN">Hindi</option>
+          </select>
+        </div>
+
+        <p class="info-desc" id="info-desc"></p>
+
+        <!-- Resistor-specific block -->
+        <div id="resistor-block" class="resistor-block hidden">
+          <h4>Resistor Color Band Analysis</h4>
+          <div class="resistor-bands" id="resistor-bands"></div>
+          <div class="resistor-result">
+            <div><span>Resistance</span><strong id="res-value">—</strong></div>
+            <div><span>Tolerance</span><strong id="res-tolerance">—</strong></div>
+            <div><span>Multiplier</span><strong id="res-multiplier">—</strong></div>
+            <div><span>Band Count</span><strong id="res-bandcount">—</strong></div>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div><span>Working Principle</span><p id="info-working"></p></div>
+          <div><span>Applications</span><p id="info-applications"></p></div>
+          <div><span>Pin Configuration</span><p id="info-pins"></p></div>
+          <div><span>Voltage Rating</span><p id="info-voltage"></p></div>
+          <div><span>Current Rating</span><p id="info-current"></p></div>
+          <div><span>Power Rating</span><p id="info-power"></p></div>
+          <div><span>Tolerance</span><p id="info-tolerance"></p></div>
+          <div><span>Manufacturer</span><p id="info-manufacturer"></p></div>
+          <div><span>Package Type</span><p id="info-package"></p></div>
+        </div>
+
+        <div class="info-cols">
+          <div>
+            <span>Advantages</span>
+            <p id="info-advantages"></p>
+          </div>
+          <div>
+            <span>Disadvantages</span>
+            <p id="info-disadvantages"></p>
+          </div>
+        </div>
+
+        <p class="info-typical"><span>Typical Uses:</span> <span id="info-typical"></span></p>
+
+        <a id="info-datasheet" href="#" target="_blank" rel="noopener" class="btn btn-ghost btn-small">📄 View Datasheet</a>
+      </div>
+
+      <div class="info-unknown hidden" id="info-unknown">
+        <div class="info-empty-icon">❓</div>
+        <h3>Unknown Component</h3>
+        <p>This object wasn't matched to the component database.</p>
+        <button id="btn-save-unknown" class="btn btn-primary btn-small">💾 Save for Future Training</button>
+      </div>
+
+      <div class="detections-list" id="detections-list"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SEARCH ================= -->
+<section id="search" class="section">
+  <div class="section-head">
+    <h2>Search Components</h2>
+    <p>Browse the full component knowledge base.</p>
+  </div>
+  <div class="search-bar glass-panel">
+    <input type="text" id="search-input" placeholder="Search e.g. '555 timer', 'resistor', 'ESP32'..." autocomplete="off" />
+    <button id="btn-voice-search" class="icon-btn" title="Voice Search">🎙</button>
+    <div class="autocomplete-list" id="autocomplete-list"></div>
+  </div>
+  <div class="search-tags">
+    <span class="search-tag-label">Popular:</span>
+    <button class="search-tag" data-q="555 timer">555 Timer</button>
+    <button class="search-tag" data-q="resistor">Resistor</button>
+    <button class="search-tag" data-q="ESP32">ESP32</button>
+    <button class="search-tag" data-q="capacitor">Capacitor</button>
+    <button class="search-tag" data-q="arduino uno">Arduino Uno</button>
+    <button class="search-tag" data-q="mosfet">MOSFET</button>
+  </div>
+  <div class="search-recent" id="search-recent"></div>
+  <div class="component-grid" id="search-results"></div>
+</section>
+
+<!-- ================= HISTORY ================= -->
+<section id="history" class="section">
+  <div class="section-head">
+    <h2>Detection History</h2>
+    <p>Automatically saved locally on your device (IndexedDB) — never uploaded.</p>
+  </div>
+  <div class="history-toolbar glass-panel">
+    <input type="text" id="history-search" placeholder="Search history..." />
+    <select id="history-filter">
+      <option value="">All Categories</option>
+    </select>
+    <button id="btn-export-history" class="btn btn-ghost btn-small">⬇ Export</button>
+    <button id="btn-clear-history" class="btn btn-danger btn-small">🗑 Clear All</button>
+  </div>
+  <div class="history-list" id="history-list"></div>
+</section>
+
+<!-- ================= TRAINING SYSTEM ================= -->
+<section id="training" class="section">
+  <div class="section-head">
+    <h2>Training System</h2>
+    <p>Capture and label components that aren't recognized yet — builds a local dataset you can export and use to train a custom model later.</p>
+  </div>
+  <div class="training-grid">
+    <form class="training-form glass-panel" id="training-form">
+      <label>Component Image
+        <input type="file" id="train-image" accept="image/*" required />
+      </label>
+      <img id="train-preview" class="train-preview hidden" alt="preview" />
+      <label>Component Name
+        <input type="text" id="train-name" placeholder="e.g. Custom Relay Module" required />
+      </label>
+      <label>Category
+        <input type="text" id="train-category" placeholder="e.g. Switching Devices" required />
+      </label>
+      <label>Description
+        <textarea id="train-description" placeholder="Short description..." rows="3"></textarea>
+      </label>
+      <label>Datasheet URL (optional)
+        <input type="url" id="train-datasheet" placeholder="https://..." />
+      </label>
+      <button type="submit" class="btn btn-primary">💾 Add to Training Dataset</button>
+    </form>
+    <div class="training-list glass-panel">
+      <h3>Saved Training Samples (<span id="training-count">0</span>)</h3>
+      <div id="training-samples"></div>
+      <button id="btn-export-dataset" class="btn btn-ghost btn-small">⬇ Export dataset.json</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SETTINGS ================= -->
+<section id="settings" class="section">
+  <div class="section-head">
+    <h2>Settings</h2>
+    <p>Personalize ElectroVision AI to your liking.</p>
+  </div>
+  <div class="settings-grid">
+    <div class="settings-card glass-panel">
+      <h3>Appearance</h3>
+      <label class="settings-row"><span>Dark Mode</span>
+        <input type="checkbox" id="setting-dark-mode" checked />
+      </label>
+      <label class="settings-row"><span>Animations</span>
+        <input type="checkbox" id="setting-animations" checked />
+      </label>
+    </div>
+    <div class="settings-card glass-panel">
+      <h3>Camera</h3>
+      <label class="settings-row"><span>Default Resolution</span>
+        <select id="setting-resolution">
+          <option value="640x480">640 × 480</option>
+          <option value="1280x720" selected>1280 × 720</option>
+          <option value="1920x1080">1920 × 1080</option>
+        </select>
+      </label>
+      <label class="settings-row"><span>Detection Speed</span>
+        <select id="setting-speed">
+          <option value="fast">Fast (lower accuracy)</option>
+          <option value="balanced" selected>Balanced</option>
+          <option value="accurate">Accurate (slower)</option>
+        </select>
+      </label>
+    </div>
+    <div class="settings-card glass-panel">
+      <h3>Voice</h3>
+      <label class="settings-row"><span>Enable Voice Output</span>
+        <input type="checkbox" id="setting-voice" checked />
+      </label>
+      <label class="settings-row"><span>Language</span>
+        <select id="setting-language">
+          <option value="en-US">English</option>
+          <option value="ta-IN">Tamil</option>
+          <option value="hi-IN">Hindi</option>
+        </select>
+      </label>
+    </div>
+    <div class="settings-card glass-panel">
+      <h3>Data</h3>
+      <button id="btn-reset-settings" class="btn btn-ghost btn-small">↺ Reset Settings</button>
+      <button id="btn-clear-all-data" class="btn btn-danger btn-small">🗑 Clear All Local Data</button>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="footer">
+  <p>⚡ ElectroVision AI — Runs 100% client-side. No data leaves your device. Built with TensorFlow.js, Three.js &amp; vanilla JS.</p>
+</footer>
+
+<div id="toast-container" class="toast-container"></div>
+
+<script src="/js/database.js"></script>
+<script src="/js/voice.js"></script>
+<script src="/js/history.js"></script>
+<script src="/js/search.js"></script>
+<script src="/js/settings.js"></script>
+<script src="/js/ai.js"></script>
+<script src="/js/camera.js"></script>
+<script src="/js/script.js"></script>
+</body>
+</html>

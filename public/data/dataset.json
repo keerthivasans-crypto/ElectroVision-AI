@@ -1,0 +1,5 @@
+{
+  "version": "1.0.0",
+  "description": "Local training dataset. Entries added via the Training System are stored here in the browser's IndexedDB (table: trainingData) and mirrored here as a seed/export format. To actually teach the AI to recognize a new component, export this file, label more images for it externally, and train/convert a TensorFlow.js model, then drop the model files into /public/models/custom/ and point ai.js -> CUSTOM_MODEL_URL at it.",
+  "samples": []
+}
