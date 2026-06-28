@@ -1,0 +1,25 @@
+{
+  "name": "electrovision-ai",
+  "version": "1.0.0",
+  "description": "ElectroVision AI — Real-time electronic component identification using webcam, TensorFlow.js, and computer vision.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "tensorflow.js",
+    "computer-vision",
+    "electronics",
+    "object-detection",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
